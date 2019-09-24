@@ -1,4 +1,109 @@
 module.exports = class KMeans {
+	constructor() {
+		this.eixoX = []
+		this.eixoY = []
+		this.grupos = 2
+		this.centroidesX = []
+		this.centroidesY = []
+		this.grupoID_Anterior = []
+
+		this.indice1 = Math.floor(Math.random() * this.eixoX.length)
+		this.indice2 = Math.floor(Math.random() * this.eixoY.length)
+		this.chamadas = 0
+	}
+
+	indiceCentroide() {
+		const fs = require('fs')
+
+		let positivo = fs.readFileSync('positivo.txt', 'utf8')
+		positivo = positivo.toString().trim()
+
+		if (positivo.length > 0) {
+			const linhas = positivo.split('\n')
+			for(let i=0; i<linhas.length; i++) {
+				const indices = linhas[i].split(',')
+				const index1 = indices[0]
+				const index2 = indices[1]
+
+				this.indice1 = index1
+				this.indice2 = index2
+			}
+		} else {
+			let negativo = fs.readFileSync('positivo.txt', 'utf8')
+			negativo = negativo.toString().trim()
+
+			if (negativo.length > 0) {
+				const linhas = negativo.split('\n')
+				let duplasIndices = []
+				for(let i=0; i<linhas.length; i++) {
+					const indices = linhas[i].split(',')
+					const index1 = indices[0]
+					const index2 = indices[1]
+	
+					duplasIndices.push([index1, index2])
+				}
+
+				this.inicializaIndices(duplasIndices)
+			} else {
+				this.indice1 = Math.floor(Math.random() * this.eixoX.length)
+				this.indice2 = Math.floor(Math.random() * this.eixoY.length)
+			}
+		}
+	}
+
+	inicializaIndices(matriz=[]) {
+		const i1 = Math.floor(Math.random() * this.eixoX.length)
+		const i2 = Math.floor(Math.random() * this.eixoY.length)
+		const sorteio = [i1, i2]
+		let igual = 0
+		for (let i=0; i<matriz.length; i++) {
+			const temp = matriz[i]
+			if (temp[0] == sorteio[0] && temp[1] == sorteio[1]) igual++
+		}
+		if (igual > 0) {
+			if (this.chamadas < 10) {
+				this.inicializaIndices(matriz)
+				this.chamadas++
+			} else {
+				this.chamadas = 0
+			}
+		} else {
+			this.indice1 = i1
+			this.indice2 = i2
+		}
+	}
+
+	feedback() {
+		const fs = require('fs')
+
+		let positivo = fs.readFileSync('positivo.txt', 'utf8')
+		positivo = positivo.toString().trim()
+
+		if (positivo.length <= 0) {
+			const readline = require('readline').createInterface({
+				input: process.stdin,
+				output: process.stdout
+			})
+			readline.question('Feedback positivo ou negativo?', (feed) => {
+				let nome_arquivo = 'negativo.txt'
+				if (feed.toString().toLowerCase().trim() == 'positivo')
+					nome_arquivo = 'positivo.txt'
+				
+				let antigo = fs.readFileSync(nome_arquivo, 'utf8')
+				if(antigo == undefined)
+					antigo = ''
+				
+				const novo = antigo + '\n' + this.indice1 + ',' + this.indice2
+				fs.writeFileSync(nome_arquivo, novo.toString().trim())
+
+				if (feed.toString().trim().length <= 0) feed = 'negativo'
+
+				console.log(`Seu feedback foi ${feed}`)
+				readline.close()
+			})
+		}
+	}
+
 	// retorna a média dos eixos x de um determinado grupo
 	mediaGrupoX(IDs=[], grupoIDs=0) {
 		// IDs: array onde o índice corresponde ao ID e o valor do índice corresponde ao grupo
@@ -32,9 +137,9 @@ module.exports = class KMeans {
 	// atualiza os centroides dos eixos x
 	atualizaCentroideX() {
 		if(this.centroidesX.length <= 0) {
-			this.centroidesX[0] = this.eixoX[0];
+			this.centroidesX[0] = this.eixoX[this.indice1];
 			for(let i=1; i<this.grupos; i++) {
-				this.centroidesX[i] = this.eixoX[(this.eixoX.length-1)-i];
+				this.centroidesX[i] = this.eixoX[this.indice2];
 			}
 		}else {
 			for(let i=0; i<this.grupos; i++) {
@@ -46,9 +151,9 @@ module.exports = class KMeans {
 	// atualiza os centroides dos eixos y
 	atualizaCentroideY() {
 		if(this.centroidesY.length <= 0) {
-			this.centroidesY[0] = this.eixoY[0];
+			this.centroidesY[0] = this.eixoY[this.indice1];
 			for(let i=1; i<this.grupos; i++) {
-				this.centroidesY[i] = this.eixoY[(this.eixoY.length-1)-i];
+				this.centroidesY[i] = this.eixoY[this.indice2];
 			}
 		}else {
 			for(let i=0; i<this.grupos; i++) {
@@ -139,10 +244,10 @@ module.exports = class KMeans {
 		this._config = {};
 		if(config.x) this.eixoX = config.x; else this.eixoX = [];
 		if(config.y) this.eixoY = config.y; else this.eixoY = [];
-		if(config.groups) this.grupos = config.groups; else this.grupos = 2;
 		this._config.x = this.eixoX;
 		this._config.y = this.eixoY;
-		this._config.groups = this.grupos;
+		
+		this.indiceCentroide()
 	}
 
 	saveModel(path='./model.json') {
@@ -168,12 +273,13 @@ module.exports = class KMeans {
 			if(this.eixoX.length > 2) {
 				while(this.atualizaGrupo()) {}
 				const matriz = this.retornaElementosGrupo(this.grupoID_Anterior);
-				return matriz;
+				console.log(matriz);
+				this.feedback()
 			}else {
-				return [];
+				console.log([]);
 			}
 		}else {
-			return [];
+			console.log([]);
 		}
 	}
 }
